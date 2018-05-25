@@ -1,0 +1,46 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: certbot-dns-wildcard
+  namespace: certbot
+spec:
+  schedule: "00 00 01 * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: certbot
+              image: tei1988/gke-certbot-dns-sample:0.1.0
+              env:
+                - name: DOMAIN
+                  value: '<your domain>'
+                - name: EMAIL
+                  value: '<your email>'
+                - name: TARGET_HTTPS_PROXY
+                  value: '<target https proxy assigned with your load balancer>'
+                - name: SSL_CERTIFICATE_PREFIX
+                  value: '<used as prefix for ssl certificate name>'
+              command: ['sh', '/opt/script/entrypoint.sh']
+              volumeMounts:
+                - name: cloud-dns-credentials
+                  mountPath: /cloud-dns/credentials
+                  readOnly: true
+                - name: cloud-dns-script
+                  mountPath: /opt/script
+                  readOnly: true
+                - name: persistent-certs
+                  mountPath: /etc/letsencrypt
+          restartPolicy: Never
+          volumes:
+            - name: cloud-dns-credentials
+              secret:
+                secretName: cloud-dns-credentials
+            - name: cloud-dns-script
+              configMap:
+                name: cloud-dns-script
+                volumes:
+            - name: persistent-certs
+              persistentVolumeClaim:
+                claimName: persistent-certs

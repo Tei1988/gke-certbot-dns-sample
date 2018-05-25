@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-dns-script
+  namespace: certbot
+data:
+  entrypoint.sh: |-
+    certbot certonly \
+      --dns-google \
+      --dns-google-credentials /cloud-dns/credentials/credentials.json \
+      --dns-google-propagation-seconds 120 \
+      -d *.${DOMAIN} \
+      -d *.stg.${DOMAIN} \
+      -d ${DOMAIN} \
+      -m ${EMAIL} \
+      --server https://acme-v02.api.letsencrypt.org/directory \
+      --agree-tos -n \
+      --force-renewal
+    DATE=$(date +%Y-%m-%d-%s)
+    OLD_CERT_NAME=$(gcloud compute ssl-certificates list | grep ${SSL_CERTIFICATE_PREFIX} | awk '{print $1}')
+    NEW_CERT_NAME="${SSL_CERTIFICATE_PREFIX}-${DATE}"
+    gcloud compute ssl-certificates create ${NEW_CERT_NAME} \
+      --certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem \
+      --private-key /etc/letsencrypt/live/${DOMAIN}/privkey.pem
+    gcloud compute target-https-proxies update ${TARGET_HTTPS_PROXY} --ssl-certificates ${NEW_CERT_NAME}
+    if [ "x${OLD_CERT_NAME}" != 'x' ]; then
+      gcloud compute ssl-certificates delete ${OLD_CERT_NAME} --quiet
+    fi
